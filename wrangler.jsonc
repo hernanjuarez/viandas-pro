@@ -10,11 +10,17 @@
 	"compatibility_flags": [
 		"global_fetch_strictly_public"
 	],
-
 	"observability": {
 		"enabled": true
 	},
-	"upload_source_maps": true
+	"upload_source_maps": true,
+	"d1_databases": [
+		{
+			"binding": "viandas_pro_db",
+			"database_name": "viandas-pro-db",
+			"database_id": "88db4974-cc12-47ca-a878-28190e39238e"
+		}
+	]
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

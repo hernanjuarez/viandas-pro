@@ -726,4 +726,172 @@ a {
   .primary-button {
     width: 100%;
   }
+
+}
+
+
+/* =================================
+   FORMULARIO DE NUEVO INGREDIENTE
+================================= */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 35, 27, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 1000;
+}
+
+.ingredient-modal {
+  background: #ffffff;
+  width: 100%;
+  max-width: 680px;
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 18px;
+  padding: 30px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 28px;
+}
+
+.modal-header h2 {
+  margin: 0 0 6px;
+  color: #26352d;
+  font-size: 23px;
+  font-weight: 700;
+}
+
+.modal-header p {
+  margin: 0;
+  color: #87928a;
+  font-size: 13px;
+}
+
+.modal-close {
+  border: none;
+  background: #f1f4f1;
+  color: #526158;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  background: #e5ebe6;
+}
+
+.ingredient-form h3 {
+  color: #34483b;
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0 0 17px;
+}
+
+
+.ingredient-form label {
+  display: block;
+  color: #536258;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 7px;
+}
+
+.ingredient-form input,
+.ingredient-form select {
+  width: 100%;
+  height: 43px;
+  padding: 0 12px;
+  border: 1px solid #dfe6e0;
+  border-radius: 9px;
+  background: #fbfcfb;
+  color: #34483b;
+  font-family: inherit;
+  font-size: 13px;
+  margin-bottom: 17px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.ingredient-form input:focus,
+.ingredient-form select:focus {
+  border-color: #6d9b79;
+  box-shadow: 0 0 0 3px rgba(109, 155, 121, 0.12);
+  background: #ffffff;
+}
+
+.form-divider {
+  height: 1px;
+  background: #edf0ed;
+  margin: 8px 0 24px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 18px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 20px;
+  border-top: 1px solid #edf0ed;
+}
+
+.secondary-button {
+  border: 1px solid #dfe6e0;
+  background: #ffffff;
+  color: #526158;
+  padding: 11px 20px;
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.secondary-button:hover {
+  background: #f5f7f5;
+}
+
+.modal-actions .primary-button {
+  border: none;
+  padding: 11px 20px;
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .ingredient-modal {
+    padding: 22px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .modal-actions button {
+    width: 100%;
+  }
 }
