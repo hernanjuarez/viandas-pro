@@ -6,6 +6,19 @@ type IngredientRow = {
   unit: string;
   min_stock: number;
 };
+type RecipeRow = {
+  id: number;
+  name: string;
+  description: string | null;
+  portions: number;
+};
+
+type RecipeIngredientRow = {
+  id: number;
+  recipe_id: number;
+  ingredient_id: number;
+  quantity: number;
+};
 
 type LotRow = {
   id: number;
@@ -183,8 +196,120 @@ if (request.method === "POST") {
 }
 
       return json({ error: "Método no permitido." }, 405);
-    }
+}
 
-    return json({ error: "Ruta no encontrada." }, 404);
+// RUTA DE RECETAS
+if (url.pathname === "/api/recipes") {
+  if (request.method === "GET") {
+    try {
+      const recipesResult = await env.viandas_pro_db
+        .prepare("SELECT * FROM recipes ORDER BY name ASC")
+        .all<RecipeRow>();
+
+      const ingredientsResult = await env.viandas_pro_db
+        .prepare("SELECT * FROM recipe_ingredients")
+        .all<RecipeIngredientRow>();
+
+      const recipes = recipesResult.results.map((recipe) => ({
+        id: recipe.id,
+        name: recipe.name,
+        description: recipe.description || "",
+        portions: recipe.portions,
+        ingredients: ingredientsResult.results
+          .filter((item) => item.recipe_id === recipe.id)
+          .map((item) => ({
+            ingredientId: item.ingredient_id,
+            quantity: item.quantity,
+          })),
+      }));
+
+      return json(recipes);
+    } catch (error) {
+      console.error("Error al consultar recetas:", error);
+      return json({ error: "No se pudieron consultar las recetas." }, 500);
+    }
+  }
+
+    if (request.method === "POST") {
+    try {
+      const data = await request.json<{
+        name: string;
+        description?: string;
+        portions: number;
+        ingredients: {
+          ingredientId: number;
+          quantity: number;
+        }[];
+      }>();
+
+      const name = data.name?.trim();
+      const portions = Number(data.portions);
+      const recipeIngredients = data.ingredients;
+
+      if (
+        !name ||
+        !Number.isInteger(portions) ||
+        portions <= 0 ||
+        !Array.isArray(recipeIngredients) ||
+        recipeIngredients.length === 0
+      ) {
+        return json({ error: "Revisá los datos de la receta." }, 400);
+      }
+
+      for (const item of recipeIngredients) {
+        if (
+          !Number.isInteger(Number(item.ingredientId)) ||
+          Number(item.ingredientId) <= 0 ||
+          !Number.isFinite(Number(item.quantity)) ||
+          Number(item.quantity) <= 0
+        ) {
+          return json({ error: "Revisá los ingredientes y sus cantidades." }, 400);
+        }
+
+        const ingredient = await env.viandas_pro_db
+          .prepare("SELECT id FROM ingredients WHERE id = ?")
+          .bind(Number(item.ingredientId))
+          .first();
+
+        if (!ingredient) {
+          return json({ error: "Uno de los ingredientes no existe." }, 400);
+        }
+      }
+
+      const recipeResult = await env.viandas_pro_db
+        .prepare(
+          `INSERT INTO recipes (name, description, portions)
+           VALUES (?, ?, ?)`
+        )
+        .bind(name, data.description?.trim() || null, portions)
+        .run();
+
+      const recipeId = Number(recipeResult.meta.last_row_id);
+
+      for (const item of recipeIngredients) {
+        await env.viandas_pro_db
+          .prepare(
+            `INSERT INTO recipe_ingredients
+             (recipe_id, ingredient_id, quantity)
+             VALUES (?, ?, ?)`
+          )
+          .bind(recipeId, Number(item.ingredientId), Number(item.quantity))
+          .run();
+      }
+
+      return json(
+        { message: "Receta guardada correctamente.", id: recipeId },
+        201
+      );
+    } catch (error) {
+      console.error("Error al guardar la receta:", error);
+      return json({ error: "No se pudo guardar la receta." }, 500);
+    }
+  }
+
+  return json({ error: "Método no permitido." }, 405);
+}
+
+return json({ error: "Ruta no encontrada." }, 404);
   },
 } satisfies ExportedHandler<Env>;

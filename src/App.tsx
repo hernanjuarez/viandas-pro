@@ -41,7 +41,18 @@ type Ingredient = {
   minStock: number;
   lots: PurchaseLot[];
 };
+type RecipeIngredient = {
+  ingredientId: number;
+  quantity: number;
+};
 
+type Recipe = {
+  id: number;
+  name: string;
+  description: string;
+  portions: number;
+  ingredients: RecipeIngredient[];
+};
 const today = () => {
   const date = new Date();
   const year = date.getFullYear();
@@ -64,25 +75,48 @@ const emptyForm = {
 
 function App() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [showRecipeForm, setShowRecipeForm] = useState(false);
+
+const [recipeData, setRecipeData] = useState({
+  name: "",
+  description: "",
+  portions: 1,
+  ingredients: [] as RecipeIngredient[],
+});
   const [selectedIngredient, setSelectedIngredient] = useState<Ingredient | null>(null);
     useEffect(() => {
-    const loadIngredients = async () => {
-      try {
-        const response = await fetch("/api/ingredients");
+  const loadData = async () => {
+    try {
+      // Cargar ingredientes
+      const ingredientsResponse = await fetch("/api/ingredients");
 
-        if (!response.ok) {
-          throw new Error("No se pudieron cargar los ingredientes");
-        }
-
-        const data: Ingredient[] = await response.json();
-        setIngredients(data);
-      } catch (error) {
-        console.error("Error al cargar ingredientes:", error);
+      if (!ingredientsResponse.ok) {
+        throw new Error("No se pudieron cargar los ingredientes");
       }
-    };
 
-    loadIngredients();
-  }, []);
+      const ingredientsData: Ingredient[] =
+        await ingredientsResponse.json();
+
+      setIngredients(ingredientsData);
+
+      // Cargar recetas
+      const recipesResponse = await fetch("/api/recipes");
+
+      if (!recipesResponse.ok) {
+        throw new Error("No se pudieron cargar las recetas");
+      }
+
+      const recipesData: Recipe[] = await recipesResponse.json();
+
+      setRecipes(recipesData);
+    } catch (error) {
+      console.error("Error al cargar los datos:", error);
+    }
+  };
+
+  loadData();
+}, []);
 
   const [ingredientSearch, setIngredientSearch] = useState("");
   const [showIngredientForm, setShowIngredientForm] = useState(false);
@@ -209,7 +243,7 @@ const getExpirationStock = (
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json() as { error?: string };
         throw new Error(errorData.error || "No se pudo guardar el ingrediente.");
       }
 
@@ -240,12 +274,7 @@ const getExpirationStock = (
   const totalCost = Number(purchaseData.totalCost);
   const ingredientId = Number(purchaseData.ingredientId);
 
-  if (
-    !ingredientId ||
-    quantity <= 0 ||
-    totalCost < 0 ||
-    !purchaseData.purchaseDate
-  ) {
+  if (!ingredientId || quantity <= 0 || totalCost < 0 || !purchaseData.purchaseDate) {
     alert("Revisá los datos de la compra.");
     return;
   }
@@ -253,9 +282,7 @@ const getExpirationStock = (
   try {
     const response = await fetch("/api/ingredients", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ingredientId,
         quantity,
@@ -267,7 +294,7 @@ const getExpirationStock = (
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json() as { error?: string };
       throw new Error(errorData.error || "No se pudo registrar la compra.");
     }
 
@@ -296,6 +323,56 @@ const getExpirationStock = (
     alert(error instanceof Error ? error.message : "Ocurrió un error.");
   }
 };
+
+const handleSaveRecipe = async (e: FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+
+  if (
+    !recipeData.name.trim() ||
+    recipeData.portions <= 0 ||
+    recipeData.ingredients.length === 0 ||
+    recipeData.ingredients.some((item) => item.quantity <= 0)
+  ) {
+    alert("Completá el nombre, las porciones y las cantidades de los ingredientes.");
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/recipes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(recipeData),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json() as { error?: string };
+      throw new Error(errorData.error || "No se pudo guardar la receta.");
+    }
+
+    const updatedResponse = await fetch("/api/recipes");
+
+    if (!updatedResponse.ok) {
+      throw new Error("No se pudo actualizar la lista de recetas.");
+    }
+
+    const updatedRecipes: Recipe[] = await updatedResponse.json();
+    setRecipes(updatedRecipes);
+
+    setRecipeData({
+      name: "",
+      description: "",
+      portions: 1,
+      ingredients: [],
+    });
+
+    setShowRecipeForm(false);
+    alert("Receta guardada correctamente.");
+  } catch (error) {
+    console.error("Error al guardar la receta:", error);
+    alert(error instanceof Error ? error.message : "Ocurrió un error.");
+  }
+};
+  
 
   return (
     <div className="app-layout">
@@ -657,6 +734,227 @@ const getExpirationStock = (
               </div>
             </>
           )}
+                    {activeSection === "Recetas" && (
+            <>
+              <div className="section-heading">
+                <div>
+                  <h2>Mis recetas</h2>
+                  <span>
+                    Creá recetas, administrá sus ingredientes y calculá sus costos.
+                  </span>
+                </div>
+
+                <button
+  className="primary-button"
+  onClick={() => setShowRecipeForm(true)}
+>
+  + Nueva receta
+</button>
+              </div>
+
+              <div className="expiry-empty">
+                <div className="expiry-empty-icon">🍲</div>
+                <h3>Todavía no hay recetas registradas</h3>
+                <p>
+                  Cuando crees tu primera receta, vas a poder consultar
+                  sus ingredientes y calcular cuánto cuesta producirla.
+                </p>
+              </div>
+            </>
+          )}
+          {showRecipeForm && (
+  <div className="modal-overlay">
+    <div className="ingredient-modal">
+      <div className="modal-header">
+        <div>
+          <h2>Nueva receta</h2>
+          <p>Registrá una preparación y sus ingredientes</p>
+        </div>
+
+        <button
+          type="button"
+          className="modal-close"
+          onClick={() => setShowRecipeForm(false)}
+        >
+          ×
+        </button>
+      </div>
+
+      <form className="ingredient-form" onSubmit={handleSaveRecipe}>
+        <h3>Datos de la receta</h3>
+
+        <label>Nombre de la receta</label>
+        <input
+          type="text"
+          placeholder="Ej: Pollo con arroz"
+          value={recipeData.name}
+          onChange={(e) =>
+            setRecipeData({ ...recipeData, name: e.target.value })
+          }
+        />
+
+        <label>Descripción</label>
+        <input
+          type="text"
+          placeholder="Descripción opcional"
+          value={recipeData.description}
+          onChange={(e) =>
+            setRecipeData({ ...recipeData, description: e.target.value })
+          }
+        />
+
+        <label>Cantidad de viandas que rinde</label>
+        <input
+          type="number"
+          min="1"
+          value={recipeData.portions}
+          onChange={(e) =>
+            setRecipeData({
+              ...recipeData,
+              portions: Number(e.target.value),
+            })
+          }
+        />
+        <h3>Ingredientes de la receta</h3>
+
+<label>Seleccionar ingrediente</label>
+<select
+  defaultValue=""
+  onChange={(e) => {
+    const ingredientId = Number(e.target.value);
+
+    if (
+      ingredientId &&
+      !recipeData.ingredients.some(
+        (item) => item.ingredientId === ingredientId
+      )
+    ) {
+      setRecipeData({
+        ...recipeData,
+        ingredients: [
+          ...recipeData.ingredients,
+          { ingredientId, quantity: 0 },
+        ],
+      });
+    }
+
+    e.target.value = "";
+  }}
+>
+  <option value="">Elegí un ingrediente</option>
+
+  {ingredients.map((ingredient) => (
+    <option key={ingredient.id} value={ingredient.id}>
+      {ingredient.name}
+    </option>
+  ))}
+</select>
+{recipeData.ingredients.map((item) => {
+  const ingredient = ingredients.find(
+    (current) => current.id === item.ingredientId
+  );
+
+  if (!ingredient) return null;
+
+  return (
+    <div key={item.ingredientId} className="form-group">
+      <label>{ingredient.name} ({ingredient.unit})</label>
+
+      <input
+        type="number"
+        min="0"
+        step="0.01"
+        placeholder="Cantidad utilizada"
+        value={item.quantity || ""}
+        onChange={(e) => {
+          setRecipeData({
+            ...recipeData,
+            ingredients: recipeData.ingredients.map((current) =>
+              current.ingredientId === item.ingredientId
+                ? { ...current, quantity: Number(e.target.value) }
+                : current
+            ),
+          });
+        }}
+      />
+
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={() => {
+          setRecipeData({
+            ...recipeData,
+            ingredients: recipeData.ingredients.filter(
+              (current) => current.ingredientId !== item.ingredientId
+            ),
+          });
+        }}
+      >
+        Quitar ingrediente
+      </button>
+    </div>
+  );
+})}
+<div className="recipe-cost-summary">
+  <h3>Costos de la receta</h3>
+
+  <p>
+    Costo total de preparación:
+    <strong>
+      $
+      {recipeData.ingredients
+        .reduce((total, item) => {
+          const ingredient = ingredients.find(
+            (current) => current.id === item.ingredientId
+          );
+
+          return total + (
+            ingredient
+              ? item.quantity * getAverageCost(ingredient)
+              : 0
+          );
+        }, 0)
+        .toLocaleString("es-AR", { maximumFractionDigits: 2 })}
+    </strong>
+  </p>
+
+  <p>
+    Costo por vianda:
+    <strong>
+      $
+      {(
+        recipeData.ingredients.reduce((total, item) => {
+          const ingredient = ingredients.find(
+            (current) => current.id === item.ingredientId
+          );
+
+          return total + (
+            ingredient
+              ? item.quantity * getAverageCost(ingredient)
+              : 0
+          );
+        }, 0) / Math.max(recipeData.portions, 1)
+      ).toLocaleString("es-AR", { maximumFractionDigits: 2 })}
+    </strong>
+  </p>
+</div>
+        <div className="form-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => setShowRecipeForm(false)}
+          >
+            Cancelar
+          </button>
+
+          <button type="submit" className="primary-button">
+            Guardar receta
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
 
           {showIngredientForm && (
             <div className="modal-overlay">
