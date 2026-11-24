@@ -114,6 +114,38 @@ function App() {
 
     return totalValue / stock;
   };
+  const getExpirationStatus = (expirationDate: string) => {
+  if (!expirationDate) return "Sin vencimiento";
+
+  const today = new Date();
+  const todayString = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("-");
+
+  const todayDate = new Date(`${todayString}T00:00:00`);
+  const expiration = new Date(`${expirationDate}T00:00:00`);
+
+  const daysRemaining = Math.round(
+    (expiration.getTime() - todayDate.getTime()) / 86400000
+  );
+
+  if (daysRemaining < 0) return "Vencido";
+  if (daysRemaining <= 7) return "Por vencer";
+
+  return "Vigente";
+};
+const getExpirationStock = (
+  ingredient: Ingredient,
+  status: string
+) => {
+  return ingredient.lots.reduce((total, lot) => {
+    return getExpirationStatus(lot.expirationDate) === status
+      ? total + lot.quantity
+      : total;
+  }, 0);
+};
 
   const getLatestSupplier = (ingredient: Ingredient) =>
     ingredient.lots[ingredient.lots.length - 1]?.supplier || "";
@@ -122,9 +154,13 @@ function App() {
     ingredient.name.toLowerCase().includes(ingredientSearch.toLowerCase())
   );
 
-  const lowStockCount = ingredients.filter(
-    (ingredient) => getStock(ingredient) <= ingredient.minStock
-  ).length;
+  const lowStockCount = ingredients.filter((ingredient) => {
+  const stock = getStock(ingredient);
+  const expiredStock = getExpirationStock(ingredient, "Vencido");
+  const availableStock = stock - expiredStock;
+
+  return availableStock <= ingredient.minStock;
+}).length;
 
   const inventoryValue = ingredients.reduce(
     (total, ingredient) =>
@@ -484,18 +520,32 @@ function App() {
                 </div>
 
                 <div className="stat-card">
-                  <h3>
-                    {ingredients.reduce(
-                      (total, ingredient) =>
-                        total +
-                        ingredient.lots.filter(
-                          (lot) => lot.expirationDate !== ""
-                        ).length,
-                      0
-                    )}
-                  </h3>
-                  <small>Lotes con vencimiento</small>
-                </div>
+  <h3>
+    {ingredients.reduce(
+      (total, ingredient) =>
+        total +
+        ingredient.lots.filter(
+          (lot) => getExpirationStatus(lot.expirationDate) === "Vencido"
+        ).length,
+      0
+    )}
+  </h3>
+  <small>Lotes vencidos</small>
+</div>
+
+<div className="stat-card">
+  <h3>
+    {ingredients.reduce(
+      (total, ingredient) =>
+        total +
+        ingredient.lots.filter(
+          (lot) => getExpirationStatus(lot.expirationDate) === "Por vencer"
+        ).length,
+      0
+    )}
+  </h3>
+  <small>Lotes por vencer</small>
+</div>
 
                 <div className="stat-card">
                   <h3>${inventoryValue.toLocaleString("es-AR", {
@@ -534,7 +584,10 @@ function App() {
                   <tbody>
                     {filteredIngredients.length > 0 ? (
                       filteredIngredients.map((ingredient) => {
-                        const stock = getStock(ingredient);
+  const stock = getStock(ingredient);
+
+  const expiredStock = getExpirationStock(ingredient, "Vencido");
+  const availableStock = stock - expiredStock;
 
                         return (
                           <tr
@@ -545,8 +598,18 @@ function App() {
                             <td>{ingredient.name}</td>
                             <td>{ingredient.category}</td>
                             <td>
-                              {stock} {ingredient.unit}
-                            </td>
+  <strong>
+    {stock} {ingredient.unit}
+  </strong>
+  <div style={{ fontSize: "12px", color: "#16a34a" }}>
+    Disponible: {availableStock} {ingredient.unit}
+  </div>
+  {expiredStock > 0 && (
+    <div style={{ fontSize: "12px", color: "#dc2626" }}>
+      Vencido: {expiredStock} {ingredient.unit}
+    </div>
+  )}
+</td>
                             <td>
                               ${getAverageCost(ingredient).toLocaleString(
                                 "es-AR",
@@ -565,12 +628,12 @@ function App() {
                             <td>
                               <span
                                 className={`stock-status ${
-                                  stock <= ingredient.minStock
+                                  availableStock <= ingredient.minStock
                                     ? "low"
                                     : "available"
                                 }`}
                               >
-                                {stock <= ingredient.minStock
+                                {availableStock <= ingredient.minStock
                                   ? "Stock bajo"
                                   : "Disponible"}
                               </span>
@@ -979,7 +1042,31 @@ function App() {
           <small>Costo promedio por unidad</small>
         </div>
       </div>
+<div className="stats-grid">
+  <div className="stat-card">
+    <h3>
+      {getExpirationStock(selectedIngredient, "Vencido")}{" "}
+      {selectedIngredient.unit}
+    </h3>
+    <small>Stock vencido</small>
+  </div>
 
+  <div className="stat-card">
+    <h3>
+      {getExpirationStock(selectedIngredient, "Por vencer")}{" "}
+      {selectedIngredient.unit}
+    </h3>
+    <small>Stock por vencer</small>
+  </div>
+
+  <div className="stat-card">
+    <h3>
+      {getExpirationStock(selectedIngredient, "Vigente")}{" "}
+      {selectedIngredient.unit}
+    </h3>
+    <small>Stock vigente</small>
+  </div>
+</div>
       <h3>Compras registradas</h3>
 
       <div className="inventory-table-container">
@@ -992,6 +1079,7 @@ function App() {
               <th>Costo total</th>
               <th>Proveedor</th>
               <th>Vencimiento</th>
+              <th>Estado</th>
             </tr>
           </thead>
 
@@ -1014,6 +1102,19 @@ function App() {
                 </td>
                 <td>{lot.supplier || "Sin proveedor"}</td>
                 <td>{lot.expirationDate || "Sin vencimiento"}</td>
+                <td>
+  <span
+    className={`stock-status ${
+      getExpirationStatus(lot.expirationDate) === "Vencido"
+        ? "low"
+        : getExpirationStatus(lot.expirationDate) === "Por vencer"
+          ? "warning"
+          : "available"
+    }`}
+  >
+    {getExpirationStatus(lot.expirationDate)}
+  </span>
+</td>
               </tr>
             ))}
           </tbody>
