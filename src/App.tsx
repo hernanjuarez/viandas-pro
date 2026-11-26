@@ -39,6 +39,7 @@ type Ingredient = {
   category: string;
   unit: string;
   minStock: number;
+  gramsPerUnit: number | null;
   lots: PurchaseLot[];
 };
 type RecipeIngredient = {
@@ -71,8 +72,8 @@ const emptyForm = {
   purchaseDate: today(),
   expirationDate: "",
   minStock: "",
+  gramsPerUnit: "",
 };
-
 function App() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -84,6 +85,7 @@ const [recipeData, setRecipeData] = useState({
   portions: 1,
   ingredients: [] as RecipeIngredient[],
 });
+const [selectedRecipeIngredientId, setSelectedRecipeIngredientId] = useState("");
   const [selectedIngredient, setSelectedIngredient] = useState<Ingredient | null>(null);
     useEffect(() => {
   const loadData = async () => {
@@ -230,16 +232,20 @@ const getExpirationStock = (
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: formData.name.trim(),
-          category: formData.category,
-          quantity,
-          unit: formData.unit,
-          totalCost,
-          supplier: formData.supplier.trim(),
-          purchaseDate: formData.purchaseDate,
-          expirationDate: formData.expirationDate,
-          minStock,
-        }),
+  name: formData.name.trim(),
+  category: formData.category,
+  quantity,
+  unit: formData.unit,
+  totalCost,
+  supplier: formData.supplier.trim(),
+  purchaseDate: formData.purchaseDate,
+  expirationDate: formData.expirationDate,
+  minStock,
+  gramsPerUnit:
+    formData.unit === "unidades" && formData.gramsPerUnit !== ""
+      ? Number(formData.gramsPerUnit)
+      : null,
+}),
       });
 
       if (!response.ok) {
@@ -267,17 +273,44 @@ const getExpirationStock = (
       alert(error instanceof Error ? error.message : "Ocurrió un error al guardar.");
     }
   };
-  const handleSavePurchase = async (e: FormEvent<HTMLFormElement>) => {
+
+
+
+const handleSavePurchase = async (e: FormEvent<HTMLFormElement>) => {
   e.preventDefault();
 
   const quantity = Number(purchaseData.quantity);
   const totalCost = Number(purchaseData.totalCost);
   const ingredientId = Number(purchaseData.ingredientId);
 
-  if (!ingredientId || quantity <= 0 || totalCost < 0 || !purchaseData.purchaseDate) {
+  if (
+    !ingredientId ||
+    quantity <= 0 ||
+    totalCost < 0 ||
+    !purchaseData.purchaseDate
+  ) {
     alert("Revisá los datos de la compra.");
     return;
   }
+
+  const ingredient = ingredients.find(
+    (item) => item.id === ingredientId
+  );
+
+  if (!ingredient) {
+    alert("No se encontró el ingrediente seleccionado.");
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Vas a registrar esta compra:\n\n` +
+    `Ingrediente: ${ingredient.name}\n` +
+    `Cantidad: ${quantity} ${ingredient.unit}\n` +
+    `Costo total: $${totalCost.toLocaleString("es-AR")}\n\n` +
+    `¿Confirmás que la cantidad y la unidad son correctas?`
+  );
+
+  if (!confirmed) return;
 
   try {
     const response = await fetch("/api/ingredients", {
@@ -340,7 +373,9 @@ const handleSaveRecipe = async (e: FormEvent<HTMLFormElement>) => {
   try {
     const response = await fetch("/api/recipes", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(recipeData),
     });
 
@@ -372,6 +407,8 @@ const handleSaveRecipe = async (e: FormEvent<HTMLFormElement>) => {
     alert(error instanceof Error ? error.message : "Ocurrió un error.");
   }
 };
+
+
   
 
   return (
@@ -781,6 +818,7 @@ const handleSaveRecipe = async (e: FormEvent<HTMLFormElement>) => {
       </div>
 
       <form className="ingredient-form" onSubmit={handleSaveRecipe}>
+      
         <h3>Datos de la receta</h3>
 
         <label>Nombre de la receta</label>
@@ -815,20 +853,40 @@ const handleSaveRecipe = async (e: FormEvent<HTMLFormElement>) => {
             })
           }
         />
-        <h3>Ingredientes de la receta</h3>
 
-<label>Seleccionar ingrediente</label>
-<select
-  defaultValue=""
-  onChange={(e) => {
-    const ingredientId = Number(e.target.value);
 
-    if (
-      ingredientId &&
-      !recipeData.ingredients.some(
-        (item) => item.ingredientId === ingredientId
+<h3>Ingredientes de la receta</h3>
+
+<div className="form-group">
+  <label>Seleccionar ingrediente del inventario</label>
+
+  <select
+    value={selectedRecipeIngredientId}
+    onChange={(e) => setSelectedRecipeIngredientId(e.target.value)}
+  >
+    <option value="">Elegí un ingrediente</option>
+
+    {ingredients
+      .filter(
+        (ingredient) =>
+          !recipeData.ingredients.some(
+            (item) => item.ingredientId === ingredient.id
+          )
       )
-    ) {
+      .map((ingredient) => (
+        <option key={ingredient.id} value={ingredient.id}>
+          {ingredient.name}
+        </option>
+      ))}
+  </select>
+
+  <button
+    type="button"
+    className="secondary-button"
+    disabled={!selectedRecipeIngredientId}
+    onClick={() => {
+      const ingredientId = Number(selectedRecipeIngredientId);
+
       setRecipeData({
         ...recipeData,
         ingredients: [
@@ -836,87 +894,128 @@ const handleSaveRecipe = async (e: FormEvent<HTMLFormElement>) => {
           { ingredientId, quantity: 0 },
         ],
       });
-    }
 
-    e.target.value = "";
-  }}
->
-  <option value="">Elegí un ingrediente</option>
+      setSelectedRecipeIngredientId("");
+    }}
+  >
+    + Agregar ingrediente
+  </button>
+</div>
 
-  {ingredients.map((ingredient) => (
-    <option key={ingredient.id} value={ingredient.id}>
-      {ingredient.name}
-    </option>
-  ))}
-</select>
-{recipeData.ingredients.map((item) => {
-  const ingredient = ingredients.find(
-    (current) => current.id === item.ingredientId
-  );
+<div className="recipe-ingredients-list">
+  <h4>Ingredientes agregados</h4>
 
-  if (!ingredient) return null;
+  {recipeData.ingredients.length === 0 ? (
+    <p>Todavía no agregaste ingredientes.</p>
+  ) : (
+  recipeData.ingredients.map((item) => {
+    const ingredient = ingredients.find(
+      (current) => current.id === item.ingredientId
+    );
 
-  return (
-    <div key={item.ingredientId} className="form-group">
-      <label>{ingredient.name} ({ingredient.unit})</label>
+    if (!ingredient) return null;
 
-      <input
-        type="number"
-        min="0"
-        step="0.01"
-        placeholder="Cantidad utilizada"
-        value={item.quantity || ""}
-        onChange={(e) => {
-          setRecipeData({
-            ...recipeData,
-            ingredients: recipeData.ingredients.map((current) =>
-              current.ingredientId === item.ingredientId
-                ? { ...current, quantity: Number(e.target.value) }
-                : current
-            ),
-          });
-        }}
-      />
+    const recipeUnit =
+      ingredient.unit === "l" || ingredient.unit === "ml"
+        ? "mililitros"
+        : "gramos";
 
-      <button
-        type="button"
-        className="secondary-button"
-        onClick={() => {
-          setRecipeData({
-            ...recipeData,
-            ingredients: recipeData.ingredients.filter(
-              (current) => current.ingredientId !== item.ingredientId
-            ),
-          });
-        }}
-      >
-        Quitar ingrediente
-      </button>
-    </div>
-  );
-})}
+    return (
+      <div key={item.ingredientId} className="form-group">
+        <label>
+          {ingredient.name} ({recipeUnit})
+        </label>
+
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder={`Cantidad en ${recipeUnit}`}
+          value={item.quantity || ""}
+          onChange={(e) => {
+            setRecipeData({
+              ...recipeData,
+              ingredients: recipeData.ingredients.map((current) =>
+                current.ingredientId === item.ingredientId
+                  ? { ...current, quantity: Number(e.target.value) }
+                  : current
+              ),
+            });
+          }}
+        />
+
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => {
+            setRecipeData({
+              ...recipeData,
+              ingredients: recipeData.ingredients.filter(
+                (current) =>
+                  current.ingredientId !== item.ingredientId
+              ),
+            });
+          }}
+        >
+          Quitar ingrediente
+        </button>
+      </div>
+    );
+  })
+)}
+</div>
+
+
 <div className="recipe-cost-summary">
   <h3>Costos de la receta</h3>
 
   <p>
-    Costo total de preparación:
-    <strong>
-      $
-      {recipeData.ingredients
-        .reduce((total, item) => {
-          const ingredient = ingredients.find(
-            (current) => current.id === item.ingredientId
-          );
+  Costo total de preparación:
+  <strong>
+    $
+    {recipeData.ingredients
+      .reduce((total, item) => {
+        const ingredient = ingredients.find(
+          (current) => current.id === item.ingredientId
+        );
 
-          return total + (
-            ingredient
-              ? item.quantity * getAverageCost(ingredient)
-              : 0
-          );
-        }, 0)
-        .toLocaleString("es-AR", { maximumFractionDigits: 2 })}
-    </strong>
-  </p>
+        if (!ingredient) return total;
+
+        let inventoryQuantity = item.quantity;
+
+        // Inventario en kilogramos, receta en gramos
+        if (ingredient.unit === "kg") {
+          inventoryQuantity = item.quantity / 1000;
+        }
+
+        // Inventario en gramos, receta en gramos
+        else if (ingredient.unit === "g") {
+          inventoryQuantity = item.quantity;
+        }
+
+        // Inventario en litros, receta en mililitros
+        else if (ingredient.unit === "l") {
+          inventoryQuantity = item.quantity / 1000;
+        }
+
+        // Inventario en mililitros, receta en mililitros
+        else if (ingredient.unit === "ml") {
+          inventoryQuantity = item.quantity;
+        }
+
+        // Inventario por unidades, receta en gramos
+        else if (ingredient.unit === "unidades") {
+          if (!ingredient.gramsPerUnit) return total;
+
+          inventoryQuantity =
+            item.quantity / ingredient.gramsPerUnit;
+        }
+
+        return total + inventoryQuantity * getAverageCost(ingredient);
+      }, 0)
+      .toLocaleString("es-AR", { maximumFractionDigits: 2 })}
+  </strong>
+</p>
 
   <p>
     Costo por vianda:
@@ -1034,20 +1133,40 @@ const handleSaveRecipe = async (e: FormEvent<HTMLFormElement>) => {
                     </div>
 
                     <div>
-                      <label>Unidad</label>
-                      <select
-                        value={formData.unit}
-                        onChange={(e) =>
-                          setFormData({ ...formData, unit: e.target.value })
-                        }
-                      >
-                        <option value="kg">Kilogramos</option>
-                        <option value="g">Gramos</option>
-                        <option value="l">Litros</option>
-                        <option value="ml">Mililitros</option>
-                        <option value="unidades">Unidades</option>
-                      </select>
-                    </div>
+  <label>Unidad</label>
+  <select
+    value={formData.unit}
+    onChange={(e) =>
+      setFormData({ ...formData, unit: e.target.value })
+    }
+  >
+    <option value="kg">Kilogramos</option>
+    <option value="g">Gramos</option>
+    <option value="l">Litros</option>
+    <option value="ml">Mililitros</option>
+    <option value="unidades">Unidades</option>
+  </select>
+
+  {formData.unit === "unidades" && (
+    <div className="form-group">
+      <label>Peso por unidad (en gramos)</label>
+      <input
+        type="number"
+        min="0.01"
+        step="0.01"
+        placeholder="Ej: 50"
+        value={formData.gramsPerUnit}
+        onChange={(e) =>
+          setFormData({
+            ...formData,
+            gramsPerUnit: e.target.value,
+          })
+        }
+      />
+      <small>Ejemplo: si cada huevo pesa 50 gramos, ingresá 50.</small>
+    </div>
+  )}
+</div>
 
                     <div>
                       <label>Costo total de compra ($)</label>

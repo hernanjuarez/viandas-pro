@@ -28,3 +28,6 @@ ON ingredient_lots(ingredient_id);
 
 CREATE INDEX IF NOT EXISTS idx_ingredient_lots_expiration
 ON ingredient_lots(expiration_date);
+
+ALTER TABLE ingredients
+ADD COLUMN grams_per_unit REAL;
